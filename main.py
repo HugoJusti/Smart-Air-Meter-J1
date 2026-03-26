@@ -4,7 +4,7 @@ import busio
 import digitalio
 
 import ccs as ccs_sensor
-import dht as dht_sensor
+import ens as dht_sensor
 import oled as display
 
 # ── SHARED I2C BUS ────────────────────────────────────────────────────────────
