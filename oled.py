@@ -1,25 +1,27 @@
-import board
-import busio
 import adafruit_ssd1306
 from PIL import Image, ImageDraw, ImageFont
 
 WIDTH  = 128
 HEIGHT = 64
 
-_i2c = busio.I2C(board.SCL, board.SDA)
-_oled = adafruit_ssd1306.SSD1306_I2C(WIDTH, HEIGHT, _i2c, addr=0x3C)
+_oled = None
+
+
+def init(i2c):
+    global _oled
+    _oled = adafruit_ssd1306.SSD1306_I2C(WIDTH, HEIGHT, i2c, addr=0x3C)
 
 
 def update_display(co2, tvoc, temperature, humidity, air_status):
     """
     Render all four sensor readings plus air quality status on the OLED.
 
-    Layout (128x64 px, 13 px per row):
+    Layout (128x64 px):
       Row 0:  CO2:  <val> ppm
       Row 13: TVOC: <val> ppb
       Row 26: Temp: <val> C
       Row 39: Hum:  <val> %
-      Row 52: <air_status>   (Good / Mediocre / Bad Air Quality)
+      Row 52: <air_status>
     """
     image = Image.new("1", (WIDTH, HEIGHT))
     draw  = ImageDraw.Draw(image)
@@ -40,6 +42,5 @@ def update_display(co2, tvoc, temperature, humidity, air_status):
 
 
 def clear():
-    """Blank the display."""
     _oled.fill(0)
     _oled.show()

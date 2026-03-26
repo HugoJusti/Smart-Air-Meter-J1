@@ -1,38 +1,39 @@
-import board
-import busio
-import adafruit_ccs811
+import adafruit_ens160
 
-# I2C and CCS811 setup
-_i2c = busio.I2C(board.SCL, board.SDA)
-ccs = adafruit_ccs811.CCS811(_i2c)
+# ENS160 is at address 0x52 on this board
+_ens = None
+
+
+def init(i2c):
+    global _ens
+    _ens = adafruit_ens160.ENS160(i2c, address=0x52)
 
 
 def set_env_data(humidity, temperature):
-    """Feed temperature and humidity to CCS811 for internal compensation."""
+    """Feed temperature and humidity to ENS160 for internal compensation."""
     if humidity is not None and temperature is not None:
-        ccs.set_environmental_data(humidity, temperature)
+        _ens.temperature_compensation = temperature
+        _ens.humidity_compensation = humidity
 
 
 def eco2_to_co2(eco2, temperature=25.0, humidity=50.0):
     """
-    Convert CCS811 eCO2 reading to estimated CO2 (ppm).
+    Convert ENS160 eCO2 reading to estimated CO2 (ppm).
 
     Algorithm:
       - Temperature correction: +0.2% per degree above 25 C
-        (warmer air slightly inflates the metal-oxide sensor response)
       - Humidity correction:  -0.1% per % RH above 50 %
-        (higher moisture absorbs some VOC/CO2 analytes in the sensing layer)
-
-    Both factors are applied multiplicatively to the raw eCO2 value.
     """
     temp_factor = 1 + 0.002 * (temperature - 25.0)
     hum_factor  = 1 - 0.001 * (humidity   - 50.0)
-    co2 = eco2 * temp_factor * hum_factor
-    return round(co2)
+    return round(eco2 * temp_factor * hum_factor)
 
 
-def read_ccs():
-    """Returns (eco2_raw, tvoc_ppb) when data is ready, else (None, None)."""
-    if ccs.data_ready:
-        return ccs.eco2, ccs.tvoc
+def read_ens():
+    """
+    Returns (eco2_raw, tvoc_ppb) when sensor is ready, else (None, None).
+    data_validity: 0 = normal, 1 = warm-up, 2 = initial start-up, 3 = invalid
+    """
+    if _ens.data_validity == 0:
+        return _ens.eco2, _ens.tvoc
     return None, None

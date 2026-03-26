@@ -1,6 +1,7 @@
-adafruit-circuitpython-ccs811
-adafruit-circuitpython-dht
+adafruit-circuitpython-ens160
+adafruit-circuitpython-ahtx0
 adafruit-circuitpython-ssd1306
 Pillow
 RPi.GPIO
 adafruit-blinka
+lgpio

@@ -1,10 +1,19 @@
 import time
 import board
+import busio
 import digitalio
 
 import ccs as ccs_sensor
 import dht as dht_sensor
 import oled as display
+
+# ── SHARED I2C BUS ────────────────────────────────────────────────────────────
+# All three I2C devices (ENS160 @ 0x52, AHT21 @ 0x38, OLED @ 0x3C) share one bus
+i2c = busio.I2C(board.SCL, board.SDA)
+
+ccs_sensor.init(i2c)
+dht_sensor.init(i2c)
+display.init(i2c)
 
 # ── LED SETUP ─────────────────────────────────────────────────────────────────
 # GPIO17 → green  LED  (Good Air Quality,     CO2 ≤ 1000 ppm)
@@ -48,14 +57,14 @@ time.sleep(2)
 
 try:
     while True:
-        # 1. Read DHT22
+        # 1. Read AHT21 (temperature + humidity)
         temperature, humidity = dht_sensor.read_dht()
 
-        # 2. Feed env data to CCS811 so it can compensate internally
+        # 2. Feed env data to ENS160 for internal compensation
         ccs_sensor.set_env_data(humidity, temperature)
 
-        # 3. Read CCS811 (only updates every ~1 s internally)
-        eco2_raw, tvoc = ccs_sensor.read_ccs()
+        # 3. Read ENS160 (only valid when data_validity == 0)
+        eco2_raw, tvoc = ccs_sensor.read_ens()
 
         if eco2_raw is not None:
             # 4. Convert eCO2 → CO2 using temp/humidity correction algorithm
@@ -78,6 +87,8 @@ try:
             hum_str  = f"{humidity:.1f} %"    if humidity    is not None else "err"
             print(f"CO2: {co2} ppm | TVOC: {tvoc} ppb | "
                   f"Temp: {temp_str} | Hum: {hum_str} | {status}")
+        else:
+            print("ENS160 warming up...")
 
         time.sleep(2)
 
