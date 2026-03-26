@@ -3,16 +3,16 @@ import board
 import busio
 import digitalio
 
-import ccs as ccs_sensor
-import ens as dht_sensor
+import aht as ens_sensor
+import ens as aht_sensor
 import oled as display
 
 # ── SHARED I2C BUS ────────────────────────────────────────────────────────────
 # All three I2C devices (ENS160 @ 0x52, AHT21 @ 0x38, OLED @ 0x3C) share one bus
 i2c = busio.I2C(board.SCL, board.SDA)
 
-ccs_sensor.init(i2c)
-dht_sensor.init(i2c)
+ens_sensor.init(i2c)
+aht_sensor.init(i2c)
 display.init(i2c)
 
 # ── LED SETUP ─────────────────────────────────────────────────────────────────
@@ -58,17 +58,17 @@ time.sleep(2)
 try:
     while True:
         # 1. Read AHT21 (temperature + humidity)
-        temperature, humidity = dht_sensor.read_dht()
+        temperature, humidity = aht_sensor.read_aht()
 
         # 2. Feed env data to ENS160 for internal compensation
-        ccs_sensor.set_env_data(humidity, temperature)
+        ens_sensor.set_env_data(humidity, temperature)
 
         # 3. Read ENS160 (only valid when data_validity == 0)
-        eco2_raw, tvoc = ccs_sensor.read_ens()
+        eco2_raw, tvoc = ens_sensor.read_ens()
 
         if eco2_raw is not None:
             # 4. Convert eCO2 → CO2 using temp/humidity correction algorithm
-            co2 = ccs_sensor.eco2_to_co2(
+            co2 = ens_sensor.eco2_to_co2(
                 eco2_raw,
                 temperature if temperature is not None else 25.0,
                 humidity    if humidity    is not None else 50.0,

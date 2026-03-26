@@ -9,7 +9,7 @@ def init(i2c):
     _aht = adafruit_ahtx0.AHTx0(i2c)
 
 
-def read_dht():
+def read_aht():
     """
     Read temperature (Celsius) and humidity (%) from the AHT21.
     Returns (temperature, humidity), or (None, None) on error.
