@@ -35,5 +35,5 @@ def read_ens():
     data_validity: 0 = normal, 1 = warm-up, 2 = initial start-up, 3 = invalid
     """
     if _ens.data_validity == 0:
-        return _ens.eco2, _ens.tvoc
+        return _ens.eCO2, _ens.TVOC
     return None, None
