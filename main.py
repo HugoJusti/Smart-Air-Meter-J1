@@ -51,6 +51,7 @@ def shutdown():
 
 
 # ── MAIN LOOP ─────────────────────────────────────────────────────────────────
+start_time = time.monotonic()
 print("Smart Air Meter starting...")
 display.clear()
 time.sleep(2)
@@ -88,7 +89,8 @@ try:
             print(f"CO2: {co2} ppm | TVOC: {tvoc} ppb | "
                   f"Temp: {temp_str} | Hum: {hum_str} | {status}")
         else:
-            print("ENS160 warming up...")
+            elapsed = time.monotonic() - start_time
+            print(f"Smart Air Meter starting ({elapsed:.0f}s)")
 
         time.sleep(2)
 
