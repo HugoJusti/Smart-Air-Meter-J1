@@ -3,8 +3,8 @@ import board
 import busio
 import digitalio
 
-import aht as ens_sensor
-import ens as aht_sensor
+import ens as ens_sensor
+import aht as aht_sensor
 import oled as display
 
 # ── SHARED I2C BUS ────────────────────────────────────────────────────────────
