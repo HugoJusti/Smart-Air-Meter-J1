@@ -60,6 +60,8 @@ try:
     while True:
         # 1. Read AHT21 (temperature + humidity)
         temperature, humidity = aht_sensor.read_aht()
+        if temperature is not None:
+            temperature -= 3.8
 
         # 2. Feed env data to ENS160 for internal compensation
         ens_sensor.set_env_data(humidity, temperature)
@@ -74,7 +76,7 @@ try:
                 eco2_raw,
                 temperature if temperature is not None else 25.0,
                 humidity    if humidity    is not None else 50.0,
-            )
+            ) + 270
 
             status = classify(co2)
 
