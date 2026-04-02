@@ -64,8 +64,9 @@ try:
         # 2. Feed env data to ENS160 for internal compensation
         ens_sensor.set_env_data(humidity, temperature)
 
-        # 3. Read ENS160 (only valid when data_validity == 0)
-        eco2_raw, tvoc = ens_sensor.read_ens()
+        # 3. Read ENS160 (force after 60s if still warming up)
+        elapsed = time.monotonic() - start_time
+        eco2_raw, tvoc = ens_sensor.read_ens(force=(elapsed > 60))
 
         if eco2_raw is not None:
             # 4. Convert eCO2 → CO2 using temp/humidity correction algorithm

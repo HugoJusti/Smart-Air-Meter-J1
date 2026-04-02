@@ -29,11 +29,11 @@ def eco2_to_co2(eco2, temperature=25.0, humidity=50.0):
     return round(eco2 * temp_factor * hum_factor)
 
 
-def read_ens():
+def read_ens(force=False):
     """
     Returns (eco2_raw, tvoc_ppb) when sensor is ready, else (None, None).
     data_validity: 0 = normal, 1 = warm-up, 2 = initial start-up, 3 = invalid
     """
-    if _ens.data_validity == 0:
+    if _ens.data_validity == 0 or (force and _ens.data_validity != 3):
         return _ens.eCO2, _ens.TVOC
     return None, None
