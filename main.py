@@ -6,6 +6,8 @@ import digitalio
 import ens as ens_sensor
 import aht as aht_sensor
 import oled as display
+import dashboard
+import db
 
 # ── SHARED I2C BUS ────────────────────────────────────────────────────────────
 # All three I2C devices (ENS160 @ 0x52, AHT21 @ 0x38, OLED @ 0x3C) share one bus
@@ -14,6 +16,9 @@ i2c = busio.I2C(board.SCL, board.SDA)
 ens_sensor.init(i2c)
 aht_sensor.init(i2c)
 display.init(i2c)
+
+# ── Start web dashboard ────────────────────────────────────────────────────────
+dashboard.start()
 
 # ── LED SETUP ─────────────────────────────────────────────────────────────────
 # GPIO17 → green  LED  (Good Air Quality,     CO2 ≤ 1000 ppm)
@@ -86,13 +91,20 @@ try:
             # 6. Update OLED
             display.update_display(co2, tvoc, temperature, humidity, status)
 
-            # 7. Serial debug output
+            # 7. Push to dashboard (live view + DB logging)
+            dashboard.update_live(co2, tvoc, temperature, humidity, status)
+            active_room = db.get_active_room()
+            if active_room:
+                db.log_reading(active_room["id"], co2, tvoc, temperature, humidity)
+
+            # 8. Serial debug output
             temp_str = f"{temperature:.1f} C" if temperature is not None else "err"
             hum_str  = f"{humidity:.1f} %"    if humidity    is not None else "err"
             print(f"CO2: {co2} ppm | TVOC: {tvoc} ppb | "
                   f"Temp: {temp_str} | Hum: {hum_str} | {status}")
         else:
             elapsed = time.monotonic() - start_time
+            dashboard.update_live(None, None, temperature, humidity, None)
             print(f"Smart Air Meter starting ({elapsed:.0f}s)")
 
         time.sleep(2)

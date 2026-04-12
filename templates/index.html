@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Smart Air Meter — Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d1117;
+  --card:     #161b22;
+  --border:   #30363d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --good:     #3fb950;
+  --mediocre: #d29922;
+  --bad:      #f85149;
+  --co2:      #ff7c7c;
+  --tvoc:     #ffd166;
+  --temp:     #ff9f43;
+  --hum:      #48dbfb;
+  --accent:   #388bfd;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────────── */
+#sidebar {
+  width: 260px;
+  min-width: 260px;
+  background: var(--card);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.logo {
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.logo h1 { font-size: 14px; font-weight: 700; letter-spacing: .2px; }
+.logo p  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Live card */
+#live-card {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.live-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+  transition: background .4s;
+}
+.live-dot.on { background: var(--good); box-shadow: 0 0 6px var(--good); }
+
+.live-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.live-val {
+  background: var(--bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.live-val .lbl { font-size: 9px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 3px; }
+.live-val .num { font-size: 16px; font-weight: 700; }
+.live-val .unit{ font-size: 10px; color: var(--muted); }
+
+.live-status {
+  margin-top: 8px;
+  font-size: 11px;
+  text-align: center;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.s-good     { background: rgba(63,185,80,.15);  color: var(--good); }
+.s-mediocre { background: rgba(210,153,34,.15); color: var(--mediocre); }
+.s-bad      { background: rgba(248,81,73,.15);  color: var(--bad); }
+.s-offline  { background: rgba(139,148,158,.1); color: var(--muted); }
+
+/* Rooms */
+.section-hdr {
+  padding: 12px 18px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+#rooms-list { flex: 1; overflow-y: auto; }
+
+.room-item {
+  display: flex;
+  align-items: center;
+  padding: 9px 18px;
+  cursor: pointer;
+  gap: 8px;
+  transition: background .12s;
+}
+.room-item:hover    { background: rgba(56,139,253,.08); }
+.room-item.selected { background: rgba(56,139,253,.14); }
+
+.room-item .rname {
+  flex: 1;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.room-item .rec-badge {
+  font-size: 9px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(63,185,80,.15);
+  color: var(--good);
+  font-weight: 700;
+  flex-shrink: 0;
+  animation: recpulse 1.4s infinite;
+}
+@keyframes recpulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+.room-item .del-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity .12s;
+  line-height: 1;
+}
+.room-item:hover .del-btn { opacity: 1; }
+.room-item .del-btn:hover { color: var(--bad); background: rgba(248,81,73,.1); }
+
+#add-room {
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+#new-room-name {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 12px;
+  outline: none;
+  transition: border-color .15s;
+}
+#new-room-name:focus { border-color: var(--accent); }
+#new-room-name::placeholder { color: var(--muted); }
+#add-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+  white-space: nowrap;
+}
+#add-btn:hover { opacity: .85; }
+
+/* ── Main ──────────────────────────────────────────────────────────────────── */
+#main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* Welcome */
+#welcome {
+  margin: auto;
+  text-align: center;
+  color: var(--muted);
+  user-select: none;
+}
+#welcome h2 { font-size: 20px; color: var(--text); margin-bottom: 8px; }
+#welcome p  { font-size: 13px; line-height: 1.6; }
+
+/* Room panel */
+#room-panel { display: none; flex-direction: column; gap: 16px; }
+
+#room-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#room-title { font-size: 20px; font-weight: 700; flex: 1; }
+
+.btn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s, background .15s;
+  font-family: inherit;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn.rec-on {
+  background: rgba(63,185,80,.1);
+  border-color: var(--good);
+  color: var(--good);
+}
+
+/* Stats bar */
+#stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.stat-card .s-lbl  { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 5px; }
+.stat-card .s-num  { font-size: 24px; font-weight: 700; }
+.stat-card .s-unit { font-size: 12px; color: var(--muted); margin-left: 2px; }
+.stat-card .s-sub  { font-size: 10px; color: var(--muted); margin-top: 3px; }
+
+/* Time range */
+#time-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+#time-row .lbl { font-size: 11px; color: var(--muted); margin-right: 2px; }
+.tbtn {
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all .12s;
+  font-family: inherit;
+}
+.tbtn:hover { border-color: var(--accent); color: var(--text); }
+.tbtn.active { background: rgba(56,139,253,.15); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+.rec-indicator {
+  margin-left: auto;
+  display: none;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--bad);
+}
+.rec-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--bad);
+  animation: recpulse 1.2s infinite;
+}
+
+/* Charts */
+#charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 16px 12px;
+}
+.chart-card .ch-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ch-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.chart-wrap { position: relative; height: 160px; }
+.no-data {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────────────── -->
+<aside id="sidebar">
+  <div class="logo">
+    <h1>Smart Air Meter</h1>
+    <p>Group J1 — ENGG1101</p>
+  </div>
+
+  <div id="live-card">
+    <div class="live-title">
+      <span class="live-dot" id="live-dot"></span>
+      Live Readings
+    </div>
+    <div class="live-grid">
+      <div class="live-val">
+        <div class="lbl">CO₂</div>
+        <div class="num" id="lv-co2" style="color:var(--co2)">—</div>
+        <div class="unit">ppm</div>
+      </div>
+      <div class="live-val">
+        <div class="lbl">TVOC</div>
+        <div class="num" id="lv-tvoc" style="color:var(--tvoc)">—</div>
+        <div class="unit">ppb</div>
+      </div>
+      <div class="live-val">
+        <div class="lbl">Temp</div>
+        <div class="num" id="lv-temp" style="color:var(--temp)">—</div>
+        <div class="unit">°C</div>
+      </div>
+      <div class="live-val">
+        <div class="lbl">Humidity</div>
+        <div class="num" id="lv-hum" style="color:var(--hum)">—</div>
+        <div class="unit">%</div>
+      </div>
+    </div>
+    <div class="live-status s-offline" id="lv-status">Sensor offline</div>
+  </div>
+
+  <div class="section-hdr">Rooms</div>
+  <div id="rooms-list"></div>
+
+  <div id="add-room">
+    <input id="new-room-name" type="text" placeholder="Room name…" maxlength="40">
+    <button id="add-btn" onclick="createRoom()">+ Add</button>
+  </div>
+</aside>
+
+<!-- ── Main ────────────────────────────────────────────────────────────────── -->
+<main id="main">
+  <div id="welcome">
+    <h2>Select a room</h2>
+    <p>Pick a room from the sidebar to view its history,<br>or add a new room to start recording.</p>
+  </div>
+
+  <div id="room-panel">
+    <!-- Header -->
+    <div id="room-header">
+      <div id="room-title"></div>
+      <button class="btn" id="rec-btn" onclick="toggleRecord()">▶ Start Recording</button>
+    </div>
+
+    <!-- Average stats -->
+    <div id="stats-bar">
+      <div class="stat-card">
+        <div class="s-lbl">Avg CO₂</div>
+        <div><span class="s-num" id="avg-co2" style="color:var(--co2)">—</span><span class="s-unit">ppm</span></div>
+        <div class="s-sub" id="stats-sub">no readings</div>
+      </div>
+      <div class="stat-card">
+        <div class="s-lbl">Avg TVOC</div>
+        <div><span class="s-num" id="avg-tvoc" style="color:var(--tvoc)">—</span><span class="s-unit">ppb</span></div>
+        <div class="s-sub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="s-lbl">Avg Temp</div>
+        <div><span class="s-num" id="avg-temp" style="color:var(--temp)">—</span><span class="s-unit">°C</span></div>
+        <div class="s-sub"></div>
+      </div>
+      <div class="stat-card">
+        <div class="s-lbl">Avg Humidity</div>
+        <div><span class="s-num" id="avg-hum" style="color:var(--hum)">—</span><span class="s-unit">%</span></div>
+        <div class="s-sub"></div>
+      </div>
+    </div>
+
+    <!-- Time range -->
+    <div id="time-row">
+      <span class="lbl">Range:</span>
+      <button class="tbtn active" onclick="setRange(1,this)">1H</button>
+      <button class="tbtn" onclick="setRange(6,this)">6H</button>
+      <button class="tbtn" onclick="setRange(24,this)">24H</button>
+      <button class="tbtn" onclick="setRange(null,this)">All</button>
+      <div class="rec-indicator" id="rec-indicator">
+        <div class="rec-dot"></div> Recording
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div id="charts-grid">
+      <div class="chart-card">
+        <div class="ch-title"><span class="ch-dot" style="background:var(--co2)"></span>CO₂ Concentration</div>
+        <div class="chart-wrap"><canvas id="ch-co2"></canvas><div class="no-data" id="nd-co2"></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="ch-title"><span class="ch-dot" style="background:var(--tvoc)"></span>TVOC</div>
+        <div class="chart-wrap"><canvas id="ch-tvoc"></canvas><div class="no-data" id="nd-tvoc"></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="ch-title"><span class="ch-dot" style="background:var(--temp)"></span>Temperature</div>
+        <div class="chart-wrap"><canvas id="ch-temp"></canvas><div class="no-data" id="nd-temp"></div></div>
+      </div>
+      <div class="chart-card">
+        <div class="ch-title"><span class="ch-dot" style="background:var(--hum)"></span>Humidity</div>
+        <div class="chart-wrap"><canvas id="ch-hum"></canvas><div class="no-data" id="nd-hum"></div></div>
+      </div>
+    </div>
+  </div><!-- /room-panel -->
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let rooms = [];
+let selectedId = null;
+let currentHours = 1;
+let charts = {};
+let refreshTimer = null;
+
+// ── Chart setup ────────────────────────────────────────────────────────────────
+Chart.defaults.color = '#8b949e';
+Chart.defaults.borderColor = '#30363d';
+Chart.defaults.font.family = 'inherit';
+Chart.defaults.font.size = 11;
+
+function makeChart(canvasId, label, color, unit) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      datasets: [
+        {
+          label,
+          data: [],
+          borderColor: color,
+          backgroundColor: color + '18',
+          borderWidth: 2,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          fill: true,
+          tension: 0.35,
+        },
+        {
+          label: 'Average',
+          data: [],
+          borderColor: 'rgba(255,255,255,0.25)',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (v == null) return '';
+              return `  ${ctx.dataset.label}: ${v.toFixed(1)} ${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'time',
+          time: {
+            tooltipFormat: 'HH:mm:ss',
+            displayFormats: { second: 'HH:mm:ss', minute: 'HH:mm', hour: 'HH:mm' }
+          },
+          grid: { color: '#1c2128' },
+          ticks: { maxTicksLimit: 7 }
+        },
+        y: {
+          grid: { color: '#1c2128' },
+          ticks: { callback: v => v.toFixed(0) }
+        }
+      },
+      animation: { duration: 250 }
+    }
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  charts.co2  = makeChart('ch-co2',  'CO₂',      '#ff7c7c', 'ppm');
+  charts.tvoc = makeChart('ch-tvoc', 'TVOC',     '#ffd166', 'ppb');
+  charts.temp = makeChart('ch-temp', 'Temp',     '#ff9f43', '°C');
+  charts.hum  = makeChart('ch-hum',  'Humidity', '#48dbfb', '%');
+
+  loadRooms();
+  setInterval(fetchLive, 2000);
+  fetchLive();
+
+  document.getElementById('new-room-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') createRoom();
+  });
+});
+
+// ── Rooms ──────────────────────────────────────────────────────────────────────
+async function loadRooms() {
+  try {
+    rooms = await (await fetch('/api/rooms')).json();
+    renderRooms();
+    if (selectedId && !rooms.find(r => r.id === selectedId)) {
+      deselect();
+    } else if (selectedId) {
+      refreshRecBtn();
+    }
+  } catch (_) {}
+}
+
+function renderRooms() {
+  const el = document.getElementById('rooms-list');
+  if (!rooms.length) {
+    el.innerHTML = '<div style="padding:12px 18px;font-size:12px;color:var(--muted)">No rooms yet — add one below.</div>';
+    return;
+  }
+  el.innerHTML = rooms.map(r => `
+    <div class="room-item${r.id === selectedId ? ' selected' : ''}" onclick="selectRoom(${r.id})">
+      <span class="rname">${esc(r.name)}</span>
+      ${r.active ? '<span class="rec-badge">● REC</span>' : ''}
+      <button class="del-btn" onclick="event.stopPropagation();deleteRoom(${r.id})" title="Delete room">✕</button>
+    </div>
+  `).join('');
+}
+
+async function createRoom() {
+  const inp = document.getElementById('new-room-name');
+  const name = inp.value.trim();
+  if (!name) return;
+  try {
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    if (res.ok) { inp.value = ''; await loadRooms(); }
+    else if (res.status === 409) alert('A room with that name already exists.');
+  } catch (_) {}
+}
+
+async function deleteRoom(id) {
+  if (!confirm('Delete this room and all its recorded data?')) return;
+  await fetch(`/api/rooms/${id}`, { method: 'DELETE' });
+  if (selectedId === id) deselect();
+  loadRooms();
+}
+
+async function selectRoom(id) {
+  selectedId = id;
+  renderRooms();
+
+  const room = rooms.find(r => r.id === id);
+  document.getElementById('room-title').textContent = room?.name ?? 'Room';
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('room-panel').style.display = 'flex';
+
+  refreshRecBtn();
+  await loadRoomData();
+
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => { if (selectedId) loadRoomData(); }, 5000);
+}
+
+function deselect() {
+  selectedId = null;
+  clearInterval(refreshTimer);
+  document.getElementById('welcome').style.display = '';
+  document.getElementById('room-panel').style.display = 'none';
+  renderRooms();
+}
+
+function refreshRecBtn() {
+  const room = rooms.find(r => r.id === selectedId);
+  if (!room) return;
+  const btn = document.getElementById('rec-btn');
+  const ind = document.getElementById('rec-indicator');
+  if (room.active) {
+    btn.textContent = '⏹ Stop Recording';
+    btn.classList.add('rec-on');
+    ind.style.display = 'flex';
+  } else {
+    btn.textContent = '▶ Start Recording';
+    btn.classList.remove('rec-on');
+    ind.style.display = 'none';
+  }
+}
+
+async function toggleRecord() {
+  const room = rooms.find(r => r.id === selectedId);
+  if (!room) return;
+  const url = room.active
+    ? '/api/rooms/deactivate'
+    : `/api/rooms/${selectedId}/activate`;
+  await fetch(url, { method: 'POST' });
+  await loadRooms();
+  refreshRecBtn();
+}
+
+// ── Charts & data ──────────────────────────────────────────────────────────────
+function setRange(hours, btn) {
+  currentHours = hours;
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (selectedId) loadRoomData();
+}
+
+async function loadRoomData() {
+  if (!selectedId) return;
+  const qs = currentHours ? `?hours=${currentHours}` : '';
+  try {
+    const { readings, stats } = await (await fetch(`/api/rooms/${selectedId}/readings${qs}`)).json();
+    updateCharts(readings, stats);
+    updateStatCards(stats, readings.length);
+  } catch (_) {}
+}
+
+function updateCharts(readings, stats) {
+  const defs = [
+    { key: 'co2',         chart: charts.co2,  avg: stats.co2         },
+    { key: 'tvoc',        chart: charts.tvoc, avg: stats.tvoc        },
+    { key: 'temperature', chart: charts.temp, avg: stats.temperature },
+    { key: 'humidity',    chart: charts.hum,  avg: stats.humidity    },
+  ];
+  const ndIds = ['nd-co2','nd-tvoc','nd-temp','nd-hum'];
+
+  defs.forEach(({ key, chart, avg }, i) => {
+    const pts = readings.map(r => ({ x: r.ts * 1000, y: r[key] }));
+    const avgLine = pts.length > 1 && avg != null
+      ? [{ x: pts[0].x, y: avg }, { x: pts[pts.length - 1].x, y: avg }]
+      : [];
+
+    chart.data.datasets[0].data = pts;
+    chart.data.datasets[1].data = avgLine;
+    chart.update('none');
+
+    const nd = document.getElementById(ndIds[i]);
+    nd.textContent = pts.length === 0 ? 'No data for this range yet' : '';
+  });
+}
+
+function updateStatCards(stats, n) {
+  const fmt = (v, d = 1) => (v != null ? (+v).toFixed(d) : '—');
+  document.getElementById('avg-co2').textContent  = fmt(stats.co2, 0);
+  document.getElementById('avg-tvoc').textContent = fmt(stats.tvoc, 0);
+  document.getElementById('avg-temp').textContent = fmt(stats.temperature);
+  document.getElementById('avg-hum').textContent  = fmt(stats.humidity);
+  document.getElementById('stats-sub').textContent = n > 0
+    ? `${n} reading${n !== 1 ? 's' : ''} in range`
+    : 'no readings yet';
+}
+
+// ── Live polling ───────────────────────────────────────────────────────────────
+async function fetchLive() {
+  try {
+    const d = await (await fetch('/api/live')).json();
+    const fresh = d.ts && (Date.now() / 1000 - d.ts) < 10;
+
+    document.getElementById('live-dot').className = 'live-dot' + (fresh ? ' on' : '');
+    document.getElementById('lv-co2').textContent  = d.co2  != null ? Math.round(d.co2)       : '—';
+    document.getElementById('lv-tvoc').textContent = d.tvoc != null ? Math.round(d.tvoc)      : '—';
+    document.getElementById('lv-temp').textContent = d.temperature != null ? (+d.temperature).toFixed(1) : '—';
+    document.getElementById('lv-hum').textContent  = d.humidity    != null ? (+d.humidity).toFixed(1)    : '—';
+
+    const el = document.getElementById('lv-status');
+    if (!fresh || !d.status) {
+      el.className = 'live-status s-offline';
+      el.textContent = 'Sensor offline';
+    } else if (d.status.includes('Good')) {
+      el.className = 'live-status s-good';     el.textContent = d.status;
+    } else if (d.status.includes('Med')) {
+      el.className = 'live-status s-mediocre'; el.textContent = d.status;
+    } else {
+      el.className = 'live-status s-bad';      el.textContent = d.status;
+    }
+  } catch (_) {}
+}
+
+// ── Utility ────────────────────────────────────────────────────────────────────
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

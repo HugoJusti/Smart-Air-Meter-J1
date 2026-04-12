@@ -5,3 +5,4 @@ Pillow
 RPi.GPIO
 adafruit-blinka
 lgpio
+flask
