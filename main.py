@@ -73,7 +73,7 @@ try:
 
         # 3. Read ENS160 (force after 60s if still warming up)
         elapsed = time.monotonic() - start_time
-        eco2_raw, tvoc = ens_sensor.read_ens(force=(elapsed > 60))
+        eco2_raw, tvoc = ens_sensor.read_ens(force=(elapsed > 5))
 
         if eco2_raw is not None:
             # 4. Convert eCO2 → CO2 using temp/humidity correction algorithm
